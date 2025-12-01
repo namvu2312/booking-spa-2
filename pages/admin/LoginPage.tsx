@@ -83,9 +83,6 @@ const LoginPage: React.FC = () => {
             Đăng Nhập
           </button>
         </form>
-        <div className="mt-6 text-center text-xs text-slate-400">
-          <p>Tài khoản Demo: {ADMIN_CREDENTIALS.USERNAME} / {ADMIN_CREDENTIALS.PASSWORD}</p>
-        </div>
       </div>
     </div>
   );

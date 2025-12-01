@@ -101,7 +101,7 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch Customers first to get phone numbers for lookup
+      // Fetch Customers
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('*')
@@ -133,15 +133,16 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Tìm serviceId dựa trên service_name (Reverse lookup)
         const service = services.find(s => s.name === item.service_name);
         
-        // Tìm số điện thoại từ bảng customers dựa vào tên (Do bảng appointments không lưu phone)
-        // Lưu ý: Cách này không chính xác tuyệt đối nếu có trùng tên, nhưng phù hợp với schema hiện tại.
+        // Lookup phone from customers list based on name match
+        // Vì bảng appointments không có cột phone_number, ta phải tìm từ bảng customers
         const customer = mappedCustomers.find(c => c.name === item.customer_name);
+        const phone = customer ? customer.phone : '';
 
         return {
           id: item.id.toString(),
           serviceId: service ? service.id : 'unknown',
           customerName: item.customer_name,
-          customerPhone: customer ? customer.phone : '', // Lấy phone từ bảng customers hoặc để rỗng
+          customerPhone: phone,
           customerEmail: '',
           date: date,
           time: time,
@@ -214,13 +215,13 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       // B. Tạo lịch hẹn mới
-      // LƯU Ý: Không gửi phone_number vào đây vì bảng appointments không có cột này
+      // KHÔNG gửi phone_number vào đây vì bảng appointments không có cột này
       const { error: bookingError } = await supabase
         .from('appointments')
         .insert([
           {
             customer_name: bookingData.customerName,
-            // phone_number: bookingData.customerPhone, // Đã xóa dòng này
+            // phone_number: bookingData.customerPhone, // <-- Đã xóa dòng này
             service_name: serviceName,
             booking_time: bookingDateTime.toISOString(),
             status: 'pending',
