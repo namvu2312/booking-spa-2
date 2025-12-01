@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useSpa } from '../../context/SpaContext';
 import { Plus, Trash2, Edit2, X } from 'lucide-react';
+import { Service } from '../../types';
 
 const ServicesPage: React.FC = () => {
-  const { services, addService, deleteService } = useSpa();
+  const { services, addService, updateService, deleteService } = useSpa();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   // New Service Form State
   const [newService, setNewService] = useState({
@@ -15,17 +17,41 @@ const ServicesPage: React.FC = () => {
     image: 'https://picsum.photos/400/300' // Default placeholder
   });
 
+  const handleEdit = (service: Service) => {
+    setNewService({
+      name: service.name,
+      description: service.description,
+      price: service.price.toString(),
+      duration: service.duration.toString(),
+      image: service.image
+    });
+    setEditingId(service.id);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setNewService({ name: '', description: '', price: '', duration: '', image: 'https://picsum.photos/400/300' });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addService({
+    const serviceData = {
       name: newService.name,
       description: newService.description,
       price: Number(newService.price),
       duration: Number(newService.duration),
       image: newService.image
-    });
-    setIsModalOpen(false);
-    setNewService({ name: '', description: '', price: '', duration: '', image: 'https://picsum.photos/400/300' });
+    };
+
+    if (editingId) {
+      updateService(editingId, serviceData);
+    } else {
+      addService(serviceData);
+    }
+    
+    handleCloseModal();
   };
 
   return (
@@ -57,7 +83,10 @@ const ServicesPage: React.FC = () => {
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
                 <span className="text-xs font-medium text-slate-400">{service.duration} phút</span>
                 <div className="flex space-x-2">
-                  <button className="text-slate-400 hover:text-blue-600">
+                  <button 
+                    onClick={() => handleEdit(service)}
+                    className="text-slate-400 hover:text-blue-600"
+                  >
                     <Edit2 className="h-4 w-4" />
                   </button>
                   <button 
@@ -73,13 +102,15 @@ const ServicesPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Add Modal */}
+      {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-800">Thêm Dịch Vụ Mới</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <h2 className="text-xl font-bold text-slate-800">
+                {editingId ? 'Cập Nhật Dịch Vụ' : 'Thêm Dịch Vụ Mới'}
+              </h2>
+              <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600">
                 <X className="h-6 w-6" />
               </button>
             </div>
@@ -126,9 +157,18 @@ const ServicesPage: React.FC = () => {
                   onChange={e => setNewService({...newService, description: e.target.value})}
                 />
               </div>
+              <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">URL Ảnh</label>
+                 <input 
+                    type="text"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-white text-slate-900 focus:ring-rose-500 focus:border-rose-500"
+                    value={newService.image}
+                    onChange={e => setNewService({...newService, image: e.target.value})}
+                 />
+              </div>
               <div className="pt-4">
                 <button type="submit" className="w-full bg-rose-600 text-white py-2 rounded-lg font-bold hover:bg-rose-700 transition">
-                  Tạo Dịch Vụ
+                  {editingId ? 'Cập Nhật Dịch Vụ' : 'Tạo Dịch Vụ'}
                 </button>
               </div>
             </form>

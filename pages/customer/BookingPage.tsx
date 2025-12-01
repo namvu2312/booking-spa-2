@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSpa } from '../../context/SpaContext';
-import { Check, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
+import { Check, ChevronRight, ChevronLeft, Calendar, Loader2, UserCheck } from 'lucide-react';
 
 const STEPS = ['Dịch vụ', 'Ngày & Giờ', 'Thông tin', 'Xác nhận'];
 
 const BookingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { services, addBooking } = useSpa();
+  const { services, addBooking, getCustomerByPhone } = useSpa();
   const [currentStep, setCurrentStep] = useState(1);
   
   // Form State
@@ -19,6 +19,10 @@ const BookingPage: React.FC = () => {
     phone: '',
     email: ''
   });
+  
+  // States cho việc Auto-fill
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [foundCustomer, setFoundCustomer] = useState(false);
 
   const selectedService = services.find(s => s.id === selectedServiceId);
 
@@ -51,6 +55,37 @@ const BookingPage: React.FC = () => {
     if (currentStep === 2) return !!date && !!time;
     if (currentStep === 3) return !!formData.name && !!formData.phone; // Email is now optional
     return true;
+  };
+
+  // Xử lý khi nhập số điện thoại (Auto-fill)
+  const handlePhoneBlur = async () => {
+    // Chỉ check nếu sđt có độ dài hợp lệ (ví dụ > 9 số)
+    if (formData.phone.length > 9) {
+      setIsCheckingPhone(true);
+      try {
+        const customer = await getCustomerByPhone(formData.phone);
+        if (customer) {
+          setFormData(prev => ({
+            ...prev,
+            name: customer.name,
+            // email: customer.email || prev.email // Nếu DB có email thì điền luôn
+          }));
+          setFoundCustomer(true);
+        } else {
+          setFoundCustomer(false);
+        }
+      } catch (e) {
+        console.error("Lỗi khi tìm khách hàng", e);
+      } finally {
+        setIsCheckingPhone(false);
+      }
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({...formData, phone: e.target.value});
+    // Reset trạng thái tìm thấy nếu người dùng sửa sđt
+    if (foundCustomer) setFoundCustomer(false);
   };
 
   // Generate simple time slots
@@ -164,26 +199,42 @@ const BookingPage: React.FC = () => {
             <div className="space-y-6 max-w-lg mx-auto">
               <h2 className="text-2xl font-bold text-slate-800 text-center">Thông Tin Của Bạn</h2>
               <div className="space-y-4">
+                <div className="relative">
+                  <label className="block text-sm font-medium text-slate-700">Số Điện Thoại</label>
+                  <div className="relative">
+                    <input 
+                      type="tel" 
+                      value={formData.phone}
+                      onChange={handlePhoneChange}
+                      onBlur={handlePhoneBlur}
+                      className="mt-1 w-full px-4 py-3 rounded-lg border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 outline-none"
+                      placeholder="(090) 123-4567"
+                    />
+                    {isCheckingPhone && (
+                      <div className="absolute right-3 top-4">
+                        <Loader2 className="h-5 w-5 text-rose-500 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Nhập số điện thoại để hệ thống tự động điền thông tin nếu bạn là khách hàng cũ.</p>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-slate-700">Họ và Tên</label>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Họ và Tên
+                    {foundCustomer && <span className="ml-2 text-xs text-green-600 font-medium flex-inline items-center"><UserCheck className="inline h-3 w-3 mr-1"/>Đã tìm thấy thông tin cũ</span>}
+                  </label>
                   <input 
                     type="text" 
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="mt-1 w-full px-4 py-3 rounded-lg border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 outline-none"
+                    className={`mt-1 w-full px-4 py-3 rounded-lg border bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 outline-none
+                      ${foundCustomer ? 'border-green-300 bg-green-50' : 'border-slate-300'}
+                    `}
                     placeholder="Nguyễn Văn A"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Số Điện Thoại</label>
-                  <input 
-                    type="tel" 
-                    value={formData.phone}
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="mt-1 w-full px-4 py-3 rounded-lg border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-rose-500 outline-none"
-                    placeholder="(090) 123-4567"
-                  />
-                </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-slate-700">
                     Địa Chỉ Email <span className="text-slate-400 font-normal">(Tùy chọn)</span>

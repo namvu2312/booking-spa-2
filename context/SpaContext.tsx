@@ -12,8 +12,10 @@ interface SpaContextType {
   addBooking: (booking: Omit<Booking, 'id' | 'status' | 'createdAt'>) => Promise<void>;
   updateBookingStatus: (id: string, status: Booking['status']) => Promise<void>;
   addService: (service: Omit<Service, 'id'>) => Promise<void>;
+  updateService: (id: string, service: Omit<Service, 'id'>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
   deleteBooking: (id: string) => Promise<void>;
+  getCustomerByPhone: (phone: string) => Promise<Customer | null>;
   isLoading: boolean;
 }
 
@@ -184,6 +186,30 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const login = () => setAdmin({ ...admin, isAuthenticated: true });
   const logout = () => setAdmin({ ...admin, isAuthenticated: false });
 
+  // Helper: Tìm khách hàng qua số điện thoại
+  const getCustomerByPhone = async (phone: string): Promise<Customer | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('phone_number', phone)
+        .single();
+      
+      if (error || !data) return null;
+
+      return {
+        id: data.id.toString(),
+        name: data.full_name,
+        phone: data.phone_number,
+        email: '',
+        totalVisits: 0,
+        lastVisit: data.created_at
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
   // 2. CREATE BOOKING
   const addBooking = async (bookingData: Omit<Booking, 'id' | 'status' | 'createdAt'>) => {
     setIsLoading(true);
@@ -194,14 +220,23 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Tạo timestamp cho booking_time (Kết hợp Date và Time)
       const bookingDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
       
-      // A. Lưu thông tin khách hàng (Upsert - Thêm mới nếu chưa có sđt)
+      // A. Xử lý thông tin khách hàng (Check & Update or Insert)
       const { data: existingCustomer } = await supabase
         .from('customers')
         .select('id')
         .eq('phone_number', bookingData.customerPhone)
         .single();
 
-      if (!existingCustomer) {
+      if (existingCustomer) {
+        // Nếu khách hàng đã tồn tại, CẬP NHẬT tên mới nhất (để đồng bộ)
+        const { error: updateError } = await supabase
+          .from('customers')
+          .update({ full_name: bookingData.customerName })
+          .eq('id', existingCustomer.id);
+        
+        if (updateError) console.error('Lỗi cập nhật tên khách hàng:', updateError);
+      } else {
+        // Nếu chưa có, TẠO MỚI
         const { error: custError } = await supabase
           .from('customers')
           .insert([
@@ -215,13 +250,11 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       // B. Tạo lịch hẹn mới
-      // KHÔNG gửi phone_number vào đây vì bảng appointments không có cột này
       const { error: bookingError } = await supabase
         .from('appointments')
         .insert([
           {
             customer_name: bookingData.customerName,
-            // phone_number: bookingData.customerPhone, // <-- Đã xóa dòng này
             service_name: serviceName,
             booking_time: bookingDateTime.toISOString(),
             status: 'pending',
@@ -287,6 +320,13 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // TODO: Khi có bảng services, thêm code supabase.insert ở đây
   };
 
+  const updateService = async (id: string, updatedData: Omit<Service, 'id'>) => {
+    setServices(prev => prev.map(service => 
+      service.id === id ? { ...service, ...updatedData } : service
+    ));
+    // TODO: Khi có bảng services, thêm code supabase.update ở đây
+  };
+
   const deleteService = async (id: string) => {
     setServices(prev => prev.filter(s => s.id !== id));
     // TODO: Khi có bảng services, thêm code supabase.delete ở đây
@@ -303,8 +343,10 @@ export const SpaProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addBooking,
       updateBookingStatus,
       addService,
+      updateService,
       deleteService,
       deleteBooking,
+      getCustomerByPhone,
       isLoading
     }}>
       {children}
